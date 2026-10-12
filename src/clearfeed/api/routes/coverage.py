@@ -3,7 +3,8 @@ from datetime import date
 from fastapi import APIRouter
 
 from clearfeed.api.deps import CompanyDep, NowDep, SessionDep
-from clearfeed.schemas import DAYS, CoverageOut, GapOut
+from clearfeed.domain.schedule import DAYS
+from clearfeed.schemas import CoverageOut, GapOut
 from clearfeed.services import coverage
 
 router = APIRouter(prefix="/companies/{company_id}/coverage", tags=["coverage"])

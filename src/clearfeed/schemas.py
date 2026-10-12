@@ -5,6 +5,7 @@ the table layout (e.g. "day": "MON" instead of day_of_week 0, and "09:00"
 instead of 540 minutes since midnight).
 """
 
+import datetime as dt
 import re
 from typing import Annotated, Literal, Self
 
@@ -123,3 +124,17 @@ def required_hours_out(rows: list[models.RequiredHours]) -> RequiredHoursOut:
             for r in rows
         ]
     )
+
+
+class GapOut(BaseModel):
+    day: Day
+    date: dt.date
+    start: Minute
+    end: Minute
+
+
+class CoverageOut(BaseModel):
+    company_timezone: str
+    week_start: dt.date
+    fully_covered: bool
+    gaps: list[GapOut]

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -9,6 +10,14 @@ from clearfeed.core.errors import AppError
 from clearfeed.models import Agent, Company, Shift
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def get_now() -> datetime:
+    """The current instant in UTC. Tests override this to pin the time."""
+    return datetime.now(UTC)
+
+
+NowDep = Annotated[datetime, Depends(get_now)]
 
 
 def get_company(company_id: int, session: SessionDep) -> Company:

@@ -2,16 +2,19 @@ from datetime import UTC, datetime
 
 import pytest
 
+from clearfeed.domain.schedule import (
+    DAYS,
+    find_overlap,
+    matching_shift,
+    parse_hhmm,
+    shift_intervals,
+)
 from clearfeed.models import Shift
-from clearfeed.schemas import parse_hhmm
-from clearfeed.domain.schedule import find_overlap, matching_shift, shift_intervals
-
-DAYS = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
 
 
 def shift(day: str, start: str, end: str) -> Shift:
     return Shift(
-        day_of_week=DAYS[day],
+        day_of_week=DAYS.index(day),
         start_minute=parse_hhmm(start),
         end_minute=parse_hhmm(end),
     )

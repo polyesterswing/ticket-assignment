@@ -2,9 +2,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from clearfeed.core.errors import AppError
-from clearfeed.domain.schedule import find_window_overlap
+from clearfeed.domain.schedule import DAYS, find_window_overlap, format_hhmm
 from clearfeed.models import Company, RequiredHours
-from clearfeed.schemas import DAYS, format_hhmm
 
 
 def get_required_hours(session: Session, company: Company) -> list[RequiredHours]:

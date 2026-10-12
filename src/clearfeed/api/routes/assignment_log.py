@@ -19,7 +19,8 @@ def list_assignment_log(
     cursor: int | None = None,
 ) -> AssignmentLogOut:
     """Assignment decisions, newest first. Pass next_cursor as cursor for the next page."""
-    page, next_cursor = assignment.list_log(session, company, ticket_id, outcome, limit, cursor)
+    assigned = None if outcome is None else outcome == "ASSIGNED"
+    page, next_cursor = assignment.list_log(session, company, ticket_id, assigned, limit, cursor)
     return AssignmentLogOut(
         items=[
             LogItemOut(

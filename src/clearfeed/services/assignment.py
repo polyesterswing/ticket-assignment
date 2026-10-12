@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,9 +9,9 @@ from sqlalchemy.orm import Session
 from clearfeed.core.config import get_settings
 from clearfeed.core.errors import AppError
 from clearfeed.domain.ranking import Candidate, rank
-from clearfeed.domain.schedule import matching_shift
+from clearfeed.domain.schedule import DAYS, format_hhmm, matching_shift
 from clearfeed.models import Agent, AssignmentLog, Company, Shift, TicketAssignment
-from clearfeed.schemas import DAYS, Outcome, format_hhmm
+from clearfeed.services.agents import agents_with_shifts
 
 
 def assign(session: Session, company: Company, ticket_id: str, now: datetime) -> TicketAssignment:
@@ -86,11 +85,11 @@ def list_log(
     session: Session,
     company: Company,
     ticket_id: str | None,
-    outcome: Outcome | None,
+    assigned: bool | None,
     limit: int,
     cursor: int | None,
 ) -> tuple[list[tuple[AssignmentLog, Agent | None]], int | None]:
-    """Log entries newest first. Returns (page, next_cursor)."""
+    """Log entries newest first, optionally only (un)assigned ones. Returns (page, next_cursor)."""
     query = (
         select(AssignmentLog, Agent)
         .outerjoin(Agent, Agent.id == AssignmentLog.agent_id)
@@ -100,9 +99,9 @@ def list_log(
     )
     if ticket_id is not None:
         query = query.where(AssignmentLog.ticket_id == ticket_id)
-    if outcome == "ASSIGNED":
+    if assigned is True:
         query = query.where(AssignmentLog.agent_id.is_not(None))
-    elif outcome == "UNASSIGNED":
+    elif assigned is False:
         query = query.where(AssignmentLog.agent_id.is_(None))
     if cursor is not None:
         query = query.where(AssignmentLog.id < cursor)
@@ -132,16 +131,9 @@ def _scheduled_agents(
     session: Session, company: Company, now: datetime
 ) -> list[tuple[Agent, Shift]]:
     """Agents in a shift at `now`, with the shift they're in, ordered by id."""
-    agents = session.scalars(
-        select(Agent).where(Agent.company_id == company.id).order_by(Agent.id)
-    ).all()
-    shifts_by_agent: dict[int, list[Shift]] = defaultdict(list)
-    for shift in session.scalars(select(Shift).join(Agent).where(Agent.company_id == company.id)):
-        shifts_by_agent[shift.agent_id].append(shift)
-
     scheduled = []
-    for agent in agents:
-        shift = matching_shift(shifts_by_agent[agent.id], agent.timezone, now)
+    for agent, shifts in agents_with_shifts(session, company):
+        shift = matching_shift(shifts, agent.timezone, now)
         if shift is not None:
             scheduled.append((agent, shift))
     return scheduled

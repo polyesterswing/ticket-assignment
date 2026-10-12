@@ -11,8 +11,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from clearfeed.core.db import SessionLocal
+from clearfeed.domain.schedule import parse_hhmm
 from clearfeed.models import Agent, Company, RequiredHours, Shift
-from clearfeed.schemas import parse_hhmm
 
 MON, TUE, WED, THU, FRI, SAT, SUN = range(7)
 WEEKDAYS = [MON, TUE, WED, THU, FRI]
@@ -90,7 +90,10 @@ def seed(session: Session) -> None:
     # Explicit ids don't advance the serial sequences; move them past the seeded ids.
     for table in ("company", "agent"):
         session.execute(
-            text(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), (SELECT MAX(id) FROM {table}))")
+            text(
+                f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
+                f"(SELECT MAX(id) FROM {table}))"
+            )
         )
 
 

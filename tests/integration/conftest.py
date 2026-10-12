@@ -14,8 +14,8 @@ from clearfeed.api.deps import get_now
 from clearfeed.app import app
 from clearfeed.core.config import get_settings
 from clearfeed.core.db import SessionLocal, engine
+from clearfeed.domain.schedule import DAYS, parse_hhmm
 from clearfeed.models import Agent, Company, ReasonCode, Shift, TicketAssignment
-from clearfeed.schemas import DAYS, parse_hhmm
 
 ROOT = Path(__file__).parents[2]
 

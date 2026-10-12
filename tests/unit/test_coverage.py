@@ -3,8 +3,8 @@ from datetime import date
 import pytest
 
 from clearfeed.domain.coverage import find_gaps, week_start
+from clearfeed.domain.schedule import DAYS, format_hhmm, parse_hhmm
 from clearfeed.models import RequiredHours, Shift
-from clearfeed.schemas import DAYS, format_hhmm, parse_hhmm
 
 WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI"]
 

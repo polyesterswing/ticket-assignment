@@ -5,16 +5,36 @@ start-inclusive, end-exclusive. An overnight shift (end < start) belongs to its
 start day and runs into the next day; a Sunday overnight shift wraps to Monday.
 """
 
+import re
 from collections.abc import Iterable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from clearfeed.models import RequiredHours, Shift
 
-MINUTES_PER_DAY = 24 * 60
+DAYS = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")  # index = day_of_week
+MINUTES_PER_DAY = 24 * 60  # also "24:00", the end of a day
 MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
 
 Interval = tuple[int, int]
+
+_HHMM = re.compile(r"(\d{2}):(\d{2})")
+
+
+def parse_hhmm(value: object) -> int:
+    """"HH:MM" (00:00..24:00) to minutes since midnight."""
+    match = _HHMM.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        raise ValueError("time must be a string in HH:MM format")
+    hours, minutes = int(match[1]), int(match[2])
+    if minutes > 59 or hours > 24 or (hours == 24 and minutes):
+        raise ValueError("time must be between 00:00 and 24:00")
+    return hours * 60 + minutes
+
+
+def format_hhmm(minute: int) -> str:
+    """Minutes since midnight to "HH:MM"; 1440 is "24:00"."""
+    return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
 def shift_intervals(shift: Shift) -> list[Interval]:

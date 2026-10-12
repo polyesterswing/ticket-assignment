@@ -6,7 +6,6 @@ instead of 540 minutes since midnight).
 """
 
 import datetime as dt
-import re
 from typing import Annotated, Literal, Self
 from zoneinfo import available_timezones
 
@@ -21,41 +20,21 @@ from pydantic import (
 )
 
 from clearfeed import models
+from clearfeed.domain.schedule import DAYS, MINUTES_PER_DAY, format_hhmm, parse_hhmm
 
 Day = Literal["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-DAYS: tuple[Day, ...] = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-
-END_OF_DAY = 24 * 60  # 1440, written "24:00"
-
-_HHMM = re.compile(r"(\d{2}):(\d{2})")
-
-
-def parse_hhmm(value: object) -> int:
-    """"HH:MM" (00:00..24:00) to minutes since midnight."""
-    match = _HHMM.fullmatch(value) if isinstance(value, str) else None
-    if match is None:
-        raise ValueError("time must be a string in HH:MM format")
-    hours, minutes = int(match[1]), int(match[2])
-    if minutes > 59 or hours > 24 or (hours == 24 and minutes):
-        raise ValueError("time must be between 00:00 and 24:00")
-    return hours * 60 + minutes
-
-
-def format_hhmm(minute: int) -> str:
-    """Minutes since midnight to "HH:MM"; 1440 is "24:00"."""
-    return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
 def _parse_start(value: object) -> int:
     minute = parse_hhmm(value)
-    if minute == END_OF_DAY:
+    if minute == MINUTES_PER_DAY:
         raise ValueError("start can't be 24:00")
     return minute
 
 
 def _parse_end(value: object) -> int:
     # An end of 00:00 means midnight at the end of the day, same as 24:00.
-    return parse_hhmm(value) or END_OF_DAY
+    return parse_hhmm(value) or MINUTES_PER_DAY
 
 
 # Minutes since midnight, written as "HH:MM" in JSON.

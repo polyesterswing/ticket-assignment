@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Response
 
 from clearfeed.api.deps import AgentDep, SessionDep, ShiftDep
-from clearfeed.schemas import DAYS, ShiftIn, ShiftOut, shift_out
+from clearfeed.domain.schedule import DAYS
+from clearfeed.schemas import ShiftIn, ShiftOut, shift_out
 from clearfeed.services import shifts
 
 # path id's are resolved through scoped lookups in deps.py

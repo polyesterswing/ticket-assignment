@@ -2,9 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from clearfeed.core.errors import AppError
+from clearfeed.domain.schedule import DAYS, find_overlap, format_hhmm
 from clearfeed.models import Agent, Shift
-from clearfeed.schemas import DAYS, format_hhmm
-from clearfeed.domain.schedule import find_overlap
 
 
 def list_shifts(session: Session, agent: Agent) -> list[Shift]:

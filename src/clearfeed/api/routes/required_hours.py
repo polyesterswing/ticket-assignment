@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
 from clearfeed.api.deps import CompanyDep, SessionDep
-from clearfeed.schemas import DAYS, RequiredHoursIn, RequiredHoursOut, required_hours_out
+from clearfeed.domain.schedule import DAYS
+from clearfeed.schemas import RequiredHoursIn, RequiredHoursOut, required_hours_out
 from clearfeed.services import required_hours
 
 router = APIRouter(prefix="/companies/{company_id}/required-hours", tags=["required hours"])

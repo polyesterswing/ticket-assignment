@@ -39,6 +39,20 @@ def test_create_and_list_sorted_by_day_then_start(client: TestClient, agent: Age
     ]
 
 
+def test_end_of_00_00_returned_as_24_00(client: TestClient, agent: Agent) -> None:
+    response = client.post(shifts_url(agent), json=body("MON", "22:00", "00:00"))
+
+    assert response.status_code == 201
+    assert (response.json()["start"], response.json()["end"]) == ("22:00", "24:00")
+
+
+def test_start_of_24_00_rejected(client: TestClient, agent: Agent) -> None:
+    response = client.post(shifts_url(agent), json=body("MON", "24:00", "06:00"))
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
 def test_overlap_across_days_rejected(client: TestClient, agent: Agent, make_shift) -> None:
     make_shift(agent, "MON", "22:00", "06:00")
 

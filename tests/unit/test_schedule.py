@@ -33,6 +33,18 @@ def test_sunday_overnight_shift_wraps_to_monday() -> None:
     assert shift_intervals(shift("SUN", "22:00", "06:00")) == [(9960, 10080), (0, 360)]
 
 
+@pytest.mark.parametrize(
+    ("s", "intervals"),
+    [
+        (shift("MON", "22:00", "24:00"), [(1320, 1440)]),
+        (shift("SUN", "22:00", "24:00"), [(9960, 10080)]),  # ends exactly at week end
+        (shift("TUE", "00:00", "24:00"), [(1440, 2880)]),  # whole day
+    ],
+)
+def test_shift_ending_at_midnight(s: Shift, intervals: list[tuple[int, int]]) -> None:
+    assert shift_intervals(s) == intervals
+
+
 def test_empty_shift_rejected() -> None:
     with pytest.raises(ValueError):
         shift_intervals(shift("MON", "09:00", "09:00"))
@@ -101,6 +113,10 @@ def test_matching_shift_rejects_naive_datetime() -> None:
         # Sunday overnight wrapping into Monday morning.
         (shift("SUN", "22:00", "06:00"), shift("MON", "05:00", "08:00"), True),
         (shift("SUN", "22:00", "06:00"), shift("MON", "06:00", "08:00"), False),
+        # Ending at 24:00 meets, but doesn't overlap, the next day's 00:00 start.
+        (shift("MON", "22:00", "24:00"), shift("TUE", "00:00", "06:00"), False),
+        (shift("SUN", "22:00", "24:00"), shift("MON", "00:00", "06:00"), False),
+        (shift("MON", "22:00", "24:00"), shift("MON", "23:00", "02:00"), True),
         (shift("MON", "09:00", "17:00"), shift("TUE", "09:00", "17:00"), False),
     ],
 )

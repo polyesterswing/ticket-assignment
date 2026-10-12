@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from clearfeed.models import Company
@@ -56,6 +57,35 @@ def test_back_to_back_allowed(client: TestClient, make_company) -> None:
     windows = [window("MON", "08:00", "12:00"), window("MON", "12:00", "20:00")]
 
     assert client.put(url(make_company()), json={"windows": windows}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        ("16:00", "24:00"),
+        ("00:00", "24:00"),  # whole day
+        ("16:00", "00:00"),  # 00:00 as an end means 24:00
+    ],
+)
+def test_window_ending_at_midnight(client: TestClient, make_company, start, end) -> None:
+    response = client.put(url(make_company()), json={"windows": [window("MON", start, end)]})
+
+    assert response.status_code == 200
+    assert response.json() == {"windows": [window("MON", start, "24:00")]}
+
+
+@pytest.mark.parametrize(
+    "windows",
+    [
+        [window("MON", "08:00", "20:00"), window("MON", "08:00", "20:00")],  # exact duplicate
+        [window("MON", "16:00", "24:00"), window("MON", "23:00", "24:00")],
+    ],
+)
+def test_overlapping_windows_rejected(client: TestClient, make_company, windows) -> None:
+    response = client.put(url(make_company()), json={"windows": windows})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "REQUIRED_HOURS_OVERLAP"
 
 
 def test_overnight_window_rejected(client: TestClient, make_company) -> None:

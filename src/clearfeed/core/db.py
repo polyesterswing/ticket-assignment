@@ -10,6 +10,5 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def get_session() -> Iterator[Session]:
-    """One session per request. Services own transactions via session.begin()."""
     with SessionLocal() as session:
         yield session

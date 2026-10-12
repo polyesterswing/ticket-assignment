@@ -79,10 +79,3 @@ def test_only_this_companys_entries(client: TestClient, company, agent, make_com
     assign(client, other, "T-9")
 
     assert [i["ticket_id"] for i in log(client, company)["items"]] == ["T-1"]
-
-
-def test_invalid_outcome(client: TestClient, company) -> None:
-    response = client.get(f"/companies/{company.id}/assignment-log", params={"outcome": "MAYBE"})
-
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

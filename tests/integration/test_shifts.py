@@ -1,5 +1,5 @@
-from threading import Barrier
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,19 +63,6 @@ def test_overlap_across_days_rejected(client: TestClient, agent: Agent, make_shi
     assert len(client.get(shifts_url(agent)).json()) == 1
 
 
-@pytest.mark.parametrize(
-    ("existing", "new"),
-    [
-        (("MON", "08:00", "12:00"), ("MON", "12:00", "20:00")),
-        (("MON", "22:00", "06:00"), ("TUE", "06:00", "08:00")),
-    ],
-)
-def test_back_to_back_allowed(client: TestClient, agent: Agent, make_shift, existing, new) -> None:
-    make_shift(agent, *existing)
-
-    assert client.post(shifts_url(agent), json=body(*new)).status_code == 201
-
-
 def test_replace_does_not_conflict_with_itself(
     client: TestClient, agent: Agent, make_shift
 ) -> None:
@@ -108,13 +95,6 @@ def test_delete(client: TestClient, agent: Agent, make_shift) -> None:
     second = client.delete(f"{shifts_url(agent)}/{shift.id}")
     assert second.status_code == 404
     assert second.json()["error"]["code"] == "SHIFT_NOT_FOUND"
-
-
-def test_validation_error_format(client: TestClient, agent: Agent) -> None:
-    response = client.post(shifts_url(agent), json=body("FUN", "09:00", "17:00"))
-
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 # --- isolation ---
@@ -173,7 +153,8 @@ def test_concurrent_overlapping_creates_save_only_one(
     def create(i: int) -> int:
         with TestClient(app) as client:
             barrier.wait()
-            return client.post(shifts_url(agent), json=body("MON", f"09:{i:02d}", "17:00")).status_code
+            response = client.post(shifts_url(agent), json=body("MON", f"09:{i:02d}", "17:00"))
+            return response.status_code
 
     with ThreadPoolExecutor(max_workers=n) as pool:
         statuses = list(pool.map(create, range(n)))

@@ -35,9 +35,10 @@ FIELD_ERROR_CODES = {
 
 def _handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
     errors = exc.errors()
-    # e.g. "body.start: Input should be in a valid time format"
+    # e.g. "body.start: time must be a string in HH:MM format"
     message = "; ".join(
-        f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}" for err in errors
+        f"{'.'.join(str(part) for part in err['loc'])}: {err['msg'].removeprefix('Value error, ')}"
+        for err in errors
     )
     codes = {FIELD_ERROR_CODES.get(tuple(err["loc"][:2]), "VALIDATION_ERROR") for err in errors}
     code = codes.pop() if len(codes) == 1 else "VALIDATION_ERROR"

@@ -1,12 +1,10 @@
-from datetime import time
-
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from clearfeed.core.errors import AppError
 from clearfeed.domain.schedule import find_window_overlap
 from clearfeed.models import Company, RequiredHours
-from clearfeed.schemas import DAYS
+from clearfeed.schemas import DAYS, format_hhmm
 
 
 def get_required_hours(session: Session, company: Company) -> list[RequiredHours]:
@@ -14,17 +12,17 @@ def get_required_hours(session: Session, company: Company) -> list[RequiredHours
         session.scalars(
             select(RequiredHours)
             .where(RequiredHours.company_id == company.id)
-            .order_by(RequiredHours.day_of_week, RequiredHours.start_time)
+            .order_by(RequiredHours.day_of_week, RequiredHours.start_minute)
         )
     )
 
 
 def replace_required_hours(
-    session: Session, company: Company, windows: list[tuple[int, time, time]]
+    session: Session, company: Company, windows: list[tuple[int, int, int]]
 ) -> list[RequiredHours]:
     """Replace the company's full set of windows (day_of_week, start, end)."""
     new = [
-        RequiredHours(company_id=company.id, day_of_week=day, start_time=start, end_time=end)
+        RequiredHours(company_id=company.id, day_of_week=day, start_minute=start, end_minute=end)
         for day, start, end in windows
     ]
     overlap = find_window_overlap(new)
@@ -46,4 +44,5 @@ def replace_required_hours(
 
 
 def _describe(window: RequiredHours) -> str:
-    return f"{DAYS[window.day_of_week]} {window.start_time:%H:%M}-{window.end_time:%H:%M}"
+    start, end = format_hhmm(window.start_minute), format_hhmm(window.end_minute)
+    return f"{DAYS[window.day_of_week]} {start}-{end}"

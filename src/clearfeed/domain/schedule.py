@@ -6,7 +6,7 @@ start day and runs into the next day; a Sunday overnight shift wraps to Monday.
 """
 
 from collections.abc import Iterable
-from datetime import datetime, time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from clearfeed.models import RequiredHours, Shift
@@ -17,17 +17,15 @@ MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
 Interval = tuple[int, int]
 
 
-def _minute_of_day(t: time) -> int:
-    return t.hour * 60 + t.minute
-
-
 def shift_intervals(shift: Shift) -> list[Interval]:
     """Minute-of-week intervals covered by a shift; two if it wraps past Sunday."""
-    start = shift.day_of_week * MINUTES_PER_DAY + _minute_of_day(shift.start_time)
-    length = (_minute_of_day(shift.end_time) - _minute_of_day(shift.start_time)) % MINUTES_PER_DAY
-    if length == 0:
+    if shift.start_minute == shift.end_minute:
         raise ValueError("shift start and end must differ")
+    length = shift.end_minute - shift.start_minute
+    if length < 0:  # overnight
+        length += MINUTES_PER_DAY
 
+    start = shift.day_of_week * MINUTES_PER_DAY + shift.start_minute
     end = start + length
     if end <= MINUTES_PER_WEEK:
         return [(start, end)]
@@ -56,9 +54,9 @@ def find_window_overlap(
     Windows never cross midnight, so sorting by (day, start) and comparing
     neighbours is enough. Back-to-back windows don't overlap.
     """
-    ordered = sorted(windows, key=lambda w: (w.day_of_week, w.start_time))
+    ordered = sorted(windows, key=lambda w: (w.day_of_week, w.start_minute))
     for prev, cur in zip(ordered, ordered[1:]):
-        if prev.day_of_week == cur.day_of_week and cur.start_time < prev.end_time:
+        if prev.day_of_week == cur.day_of_week and cur.start_minute < prev.end_minute:
             return prev, cur
     return None
 

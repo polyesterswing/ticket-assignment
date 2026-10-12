@@ -1,6 +1,5 @@
 import os
 from collections.abc import Callable, Iterator
-from datetime import time
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,7 @@ from sqlalchemy.orm import Session
 from clearfeed.app import app
 from clearfeed.core.db import SessionLocal, engine
 from clearfeed.models import Agent, Company, Shift
-from clearfeed.schemas import DAYS
+from clearfeed.schemas import DAYS, parse_hhmm
 
 ROOT = Path(__file__).parents[2]
 
@@ -86,8 +85,8 @@ def make_shift(session: Session) -> Callable[..., Shift]:
         shift = Shift(
             agent_id=agent.id,
             day_of_week=DAYS.index(day),
-            start_time=time.fromisoformat(start),
-            end_time=time.fromisoformat(end),
+            start_minute=parse_hhmm(start),
+            end_minute=parse_hhmm(end),
         )
         session.add(shift)
         session.commit()

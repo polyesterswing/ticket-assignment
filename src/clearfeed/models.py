@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -12,7 +12,6 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
-    Time,
     UniqueConstraint,
     func,
     text,
@@ -77,23 +76,28 @@ class Agent(Base):
 class Shift(Base):
     """Recurring weekly shift in the agent's local time.
 
-    day_of_week is 0=MON .. 6=SUN. end_time < start_time is an overnight shift:
-    it belongs to day_of_week and ends on the following day.
+    Times are minutes since local midnight: start 0..1439, end 1..1440
+    (1440 = 24:00). end_minute < start_minute is an overnight shift: it belongs
+    to day_of_week (0=MON .. 6=SUN) and ends on the following day.
     """
 
     __tablename__ = "shift"
     __table_args__ = (
         # Overlaps, including across days, are checked in the app.
-        UniqueConstraint("agent_id", "day_of_week", "start_time"),
+        UniqueConstraint("agent_id", "day_of_week", "start_minute"),
         CheckConstraint("day_of_week BETWEEN 0 AND 6", name="day_of_week"),
-        CheckConstraint("start_time <> end_time", name="non_empty"),
+        CheckConstraint(
+            "start_minute BETWEEN 0 AND 1439 AND end_minute BETWEEN 1 AND 1440",
+            name="minute_range",
+        ),
+        CheckConstraint("start_minute <> end_minute", name="non_empty"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     agent_id: Mapped[int] = mapped_column(ForeignKey("agent.id"))
     day_of_week: Mapped[int] = mapped_column(SmallInteger)
-    start_time: Mapped[time] = mapped_column(Time)
-    end_time: Mapped[time] = mapped_column(Time)
+    start_minute: Mapped[int] = mapped_column(SmallInteger)
+    end_minute: Mapped[int] = mapped_column(SmallInteger)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -103,19 +107,25 @@ class Shift(Base):
 
 
 class RequiredHours(Base):
-    """Coverage window in the company timezone. No overnight windows."""
+    """Coverage window in the company timezone, in minutes since midnight.
+
+    No overnight windows; a window may end at 24:00 (1440).
+    """
 
     __tablename__ = "required_hours"
     __table_args__ = (
         CheckConstraint("day_of_week BETWEEN 0 AND 6", name="day_of_week"),
-        CheckConstraint("start_time < end_time", name="start_before_end"),
+        CheckConstraint(
+            "start_minute >= 0 AND start_minute < end_minute AND end_minute <= 1440",
+            name="minute_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("company.id"), index=True)
     day_of_week: Mapped[int] = mapped_column(SmallInteger)
-    start_time: Mapped[time] = mapped_column(Time)
-    end_time: Mapped[time] = mapped_column(Time)
+    start_minute: Mapped[int] = mapped_column(SmallInteger)
+    end_minute: Mapped[int] = mapped_column(SmallInteger)
 
 
 class TicketAssignment(Base):

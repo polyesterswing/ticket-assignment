@@ -1,11 +1,9 @@
-from datetime import time
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from clearfeed.core.errors import AppError
 from clearfeed.models import Agent, Shift
-from clearfeed.schemas import DAYS
+from clearfeed.schemas import DAYS, format_hhmm
 from clearfeed.domain.schedule import find_overlap
 
 
@@ -14,16 +12,16 @@ def list_shifts(session: Session, agent: Agent) -> list[Shift]:
         session.scalars(
             select(Shift)
             .where(Shift.agent_id == agent.id)
-            .order_by(Shift.day_of_week, Shift.start_time)
+            .order_by(Shift.day_of_week, Shift.start_minute)
         )
     )
 
 
 def create_shift(
-    session: Session, agent: Agent, day_of_week: int, start: time, end: time
+    session: Session, agent: Agent, day_of_week: int, start: int, end: int
 ) -> Shift:
     existing = _lock_agent_shifts(session, agent)
-    shift = Shift(agent_id=agent.id, day_of_week=day_of_week, start_time=start, end_time=end)
+    shift = Shift(agent_id=agent.id, day_of_week=day_of_week, start_minute=start, end_minute=end)
     _reject_overlap(shift, existing)
 
     session.add(shift)
@@ -32,15 +30,15 @@ def create_shift(
 
 
 def replace_shift(
-    session: Session, agent: Agent, shift: Shift, day_of_week: int, start: time, end: time
+    session: Session, agent: Agent, shift: Shift, day_of_week: int, start: int, end: int
 ) -> Shift:
     others = [s for s in _lock_agent_shifts(session, agent) if s.id != shift.id]
-    candidate = Shift(day_of_week=day_of_week, start_time=start, end_time=end)
+    candidate = Shift(day_of_week=day_of_week, start_minute=start, end_minute=end)
     _reject_overlap(candidate, others)
 
     shift.day_of_week = day_of_week
-    shift.start_time = start
-    shift.end_time = end
+    shift.start_minute = start
+    shift.end_minute = end
     session.commit()
     return shift
 
@@ -67,5 +65,5 @@ def _reject_overlap(candidate: Shift, existing: list[Shift]) -> None:
             422,
             "SHIFT_OVERLAP",
             f"Overlaps shift {conflict.id} ({DAYS[conflict.day_of_week]} "
-            f"{conflict.start_time:%H:%M}-{conflict.end_time:%H:%M})",
+            f"{format_hhmm(conflict.start_minute)}-{format_hhmm(conflict.end_minute)})",
         )

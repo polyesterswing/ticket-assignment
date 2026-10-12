@@ -1,4 +1,3 @@
-from datetime import time
 from threading import Barrier
 from concurrent.futures import ThreadPoolExecutor
 
@@ -142,7 +141,7 @@ def test_shift_from_another_agent_not_found(
         assert response.json()["error"]["code"] == "SHIFT_NOT_FOUND"
 
     session.refresh(shift)
-    assert (shift.day_of_week, shift.start_time, shift.end_time) == (0, time(9), time(17))
+    assert (shift.day_of_week, shift.start_minute, shift.end_minute) == (0, 540, 1020)
 
 
 # --- concurrency ---

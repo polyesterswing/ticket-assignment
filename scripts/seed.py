@@ -6,14 +6,13 @@ Idempotent: companies and agents are upserted by fixed id, and their shifts and
 required hours are reset to the values below.
 """
 
-from datetime import time
-
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from clearfeed.core.db import SessionLocal
 from clearfeed.models import Agent, Company, RequiredHours, Shift
+from clearfeed.schemas import parse_hhmm
 
 MON, TUE, WED, THU, FRI, SAT, SUN = range(7)
 WEEKDAYS = [MON, TUE, WED, THU, FRI]
@@ -23,23 +22,23 @@ COMPANIES = [
     {"id": 2, "name": "Globex", "timezone": "America/New_York"},
 ]
 
-# (id, company_id, name, timezone, [(day, start, end), ...])
+# (id, company_id, name, timezone, [(day, "HH:MM" start, "HH:MM" end), ...])
 AGENTS = [
     # Same timezone and hours as Arjun, for tie-break scenarios.
-    (1, 1, "Priya", "Asia/Kolkata", [(d, time(9), time(17)) for d in WEEKDAYS]),
-    (2, 1, "Arjun", "Asia/Kolkata", [(d, time(9), time(17)) for d in WEEKDAYS]),
+    (1, 1, "Priya", "Asia/Kolkata", [(d, "09:00", "17:00") for d in WEEKDAYS]),
+    (2, 1, "Arjun", "Asia/Kolkata", [(d, "09:00", "17:00") for d in WEEKDAYS]),
     # PRD example: Mon 09:00-17:00 LA is Mon 17:00-Tue 01:00 London in January.
-    (3, 1, "Maria", "America/Los_Angeles", [(MON, time(9), time(17))]),
+    (3, 1, "Maria", "America/Los_Angeles", [(MON, "09:00", "17:00")]),
     # Overnight shift: belongs to Monday, ends Tuesday 06:00.
-    (4, 1, "Tom", "Europe/London", [(MON, time(22), time(6))]),
-    (5, 2, "Lena", "America/New_York", [(d, time(8), time(16)) for d in WEEKDAYS]),
-    (6, 2, "Kenji", "Asia/Tokyo", [(d, time(9), time(17)) for d in WEEKDAYS]),
+    (4, 1, "Tom", "Europe/London", [(MON, "22:00", "06:00")]),
+    (5, 2, "Lena", "America/New_York", [(d, "08:00", "16:00") for d in WEEKDAYS]),
+    (6, 2, "Kenji", "Asia/Tokyo", [(d, "09:00", "17:00") for d in WEEKDAYS]),
 ]
 
 # company_id -> [(day, start, end), ...] in company time
 REQUIRED_HOURS = {
-    1: [(d, time(8), time(20)) for d in WEEKDAYS],
-    2: [(d, time(9), time(17)) for d in WEEKDAYS],
+    1: [(d, "08:00", "20:00") for d in WEEKDAYS],
+    2: [(d, "09:00", "17:00") for d in WEEKDAYS],
 }
 
 
@@ -67,14 +66,24 @@ def seed(session: Session) -> None:
         )
         session.execute(delete(Shift).where(Shift.agent_id == agent_id))
         session.add_all(
-            Shift(agent_id=agent_id, day_of_week=day, start_time=start, end_time=end)
+            Shift(
+                agent_id=agent_id,
+                day_of_week=day,
+                start_minute=parse_hhmm(start),
+                end_minute=parse_hhmm(end),
+            )
             for day, start, end in shifts
         )
 
     for company_id, windows in REQUIRED_HOURS.items():
         session.execute(delete(RequiredHours).where(RequiredHours.company_id == company_id))
         session.add_all(
-            RequiredHours(company_id=company_id, day_of_week=day, start_time=start, end_time=end)
+            RequiredHours(
+                company_id=company_id,
+                day_of_week=day,
+                start_minute=parse_hhmm(start),
+                end_minute=parse_hhmm(end),
+            )
             for day, start, end in windows
         )
 

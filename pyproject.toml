@@ -7,7 +7,11 @@ authors = [
     { name = "polyesterswing", email = "67583328+polyesterswing@users.noreply.github.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.143.0",
+    "pydantic-settings>=2.15.0",
+    "uvicorn[standard]>=0.54.0",
+]
 
 [project.scripts]
 clearfeed = "clearfeed:main"
@@ -15,3 +19,9 @@ clearfeed = "clearfeed:main"
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=9.1.1",
+]

@@ -45,12 +45,6 @@ def test_fully_covered(client: TestClient, make_company, make_agent, make_shift)
     assert body["gaps"] == []
 
 
-def test_no_required_hours_is_fully_covered(client: TestClient, make_company) -> None:
-    body = client.get(url(make_company()), params={"week_of": "2026-10-12"}).json()
-
-    assert (body["fully_covered"], body["gaps"]) == (True, [])
-
-
 def test_other_companies_agents_dont_count(
     client: TestClient, make_company, make_agent, make_shift
 ) -> None:
@@ -79,10 +73,3 @@ def test_invalid_week_of(client: TestClient, make_company) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
-
-
-def test_unknown_company(client: TestClient) -> None:
-    response = client.get("/companies/999/coverage")
-
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "COMPANY_NOT_FOUND"

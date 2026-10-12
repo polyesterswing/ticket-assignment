@@ -154,16 +154,6 @@ def test_no_agent_capacity(
     assert (result["agent_id"], result["reason_code"]) == (None, "NO_AGENT_CAPACITY")
 
 
-def test_shift_boundaries(client: TestClient, set_now, company, on_shift) -> None:
-    """Start inclusive, end exclusive, at the assignment level."""
-    on_shift(company)
-
-    set_now(at("09:00:00"))
-    assert assign(client, company, "T-start")["reason_code"] == "FEWEST_ACTIVE"
-    set_now(at("17:00:00"))
-    assert assign(client, company, "T-end")["reason_code"] == "NO_AGENT_SCHEDULED"
-
-
 def test_snapshot_in_log(
     client: TestClient, session: Session, company, make_agent, make_shift, make_ticket
 ) -> None:

@@ -54,3 +54,33 @@ def shift_out(shift: models.Shift) -> ShiftOut:
         start=shift.start_time,
         end=shift.end_time,
     )
+
+
+class Window(BaseModel):
+    """A required-hours window in company time. No overnight windows."""
+
+    day: Day
+    start: HHMM
+    end: HHMM
+
+    @model_validator(mode="after")
+    def _start_before_end(self) -> Self:
+        if self.start >= self.end:
+            raise ValueError("start must be before end (overnight windows are not allowed)")
+        return self
+
+
+class RequiredHoursIn(BaseModel):
+    windows: list[Window]
+
+
+# Responses have the same shape as the PUT body.
+RequiredHoursOut = RequiredHoursIn
+
+
+def required_hours_out(rows: list[models.RequiredHours]) -> RequiredHoursOut:
+    return RequiredHoursOut(
+        windows=[
+            Window(day=DAYS[r.day_of_week], start=r.start_time, end=r.end_time) for r in rows
+        ]
+    )

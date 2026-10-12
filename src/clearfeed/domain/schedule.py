@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-from clearfeed.models import Shift
+from clearfeed.models import RequiredHours, Shift
 
 MINUTES_PER_DAY = 24 * 60
 MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
@@ -45,6 +45,21 @@ def find_overlap(candidate: Shift, existing: Iterable[Shift]) -> Shift | None:
             for b_start, b_end in shift_intervals(other):
                 if a_start < b_end and b_start < a_end:
                     return other
+    return None
+
+
+def find_window_overlap(
+    windows: Iterable[RequiredHours],
+) -> tuple[RequiredHours, RequiredHours] | None:
+    """First pair of overlapping required-hours windows, or None.
+
+    Windows never cross midnight, so sorting by (day, start) and comparing
+    neighbours is enough. Back-to-back windows don't overlap.
+    """
+    ordered = sorted(windows, key=lambda w: (w.day_of_week, w.start_time))
+    for prev, cur in zip(ordered, ordered[1:]):
+        if prev.day_of_week == cur.day_of_week and cur.start_time < prev.end_time:
+            return prev, cur
     return None
 
 

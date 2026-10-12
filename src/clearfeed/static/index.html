@@ -201,7 +201,7 @@
           Does what the ticketing system would: assigns or completes a ticket for this company.
         </p>
         <form class="d-flex flex-wrap gap-2" @submit.prevent="sendTestTicket('assign')">
-          <input class="form-control w-auto" placeholder="Ticket id, e.g. T-1001" x-model="testTicketId" required>
+          <input class="form-control w-auto" placeholder="Ticket id" x-model="testTicketId" required>
           <button class="btn btn-primary">Assign</button>
           <button type="button" class="btn btn-outline-secondary" :disabled="!testTicketId.trim()"
                   @click="sendTestTicket('complete')">Complete</button>

@@ -309,8 +309,16 @@ def test_same_ticket_id_in_two_companies_is_independent(
     assert active_count(session, agent_b) == 1
 
 
-def test_unknown_company(client: TestClient) -> None:
-    response = client.post("/companies/999/tickets/T-1/assign")
+@pytest.mark.parametrize(
+    "ticket_id", ["%20", "%20T-1", "T-1%20"], ids=["blank", "leading", "trailing"]
+)
+def test_blank_or_padded_ticket_id_rejected(
+    client: TestClient, session: Session, company, on_shift, ticket_id: str
+) -> None:
+    on_shift(company)
 
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "COMPANY_NOT_FOUND"
+    response = client.post(f"/companies/{company.id}/tickets/{ticket_id}/assign")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_TICKET_ID"
+    assert session.scalar(select(func.count()).select_from(TicketAssignment)) == 0

@@ -9,7 +9,8 @@ from clearfeed.services import assignment
 # path ids are resolved through scoped lookups in deps.py
 router = APIRouter(prefix="/companies/{company_id}/tickets/{ticket_id}", tags=["tickets"])
 
-TicketId = Annotated[str, Path(min_length=1, max_length=255)]
+# Non-blank, with no leading or trailing whitespace.
+TicketId = Annotated[str, Path(max_length=255, pattern=r"^\S(.*\S)?$")]
 
 
 @router.post("/assign")

@@ -8,8 +8,17 @@ instead of 540 minutes since midnight).
 import datetime as dt
 import re
 from typing import Annotated, Literal, Self
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, BeforeValidator, PlainSerializer, WithJsonSchema, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    PlainSerializer,
+    WithJsonSchema,
+    model_validator,
+)
 
 from clearfeed import models
 
@@ -138,3 +147,37 @@ class CoverageOut(BaseModel):
     week_start: dt.date
     fully_covered: bool
     gaps: list[GapOut]
+
+
+_TIMEZONES = available_timezones()
+
+
+def _valid_timezone(value: str) -> str:
+    if value not in _TIMEZONES:
+        raise ValueError("must be an IANA timezone name, e.g. Europe/London")
+    return value
+
+
+Timezone = Annotated[str, AfterValidator(_valid_timezone)]
+
+
+class CompanyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    timezone: str
+
+
+class AgentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    company_id: int
+    name: str
+    timezone: str
+    updated_at: dt.datetime
+
+
+class AgentPatch(BaseModel):
+    timezone: Timezone

@@ -181,3 +181,53 @@ class AgentOut(BaseModel):
 
 class AgentPatch(BaseModel):
     timezone: Timezone
+
+
+def _to_utc(value: dt.datetime) -> dt.datetime:
+    return value.astimezone(dt.UTC)
+
+
+# Always rendered in UTC, e.g. "2026-10-12T09:55:00Z".
+UTCDatetime = Annotated[dt.datetime, AfterValidator(_to_utc)]
+
+
+class TicketOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    company_id: int
+    ticket_id: str
+    agent_id: int | None
+    reason_code: models.ReasonCode
+    assigned_at: UTCDatetime | None
+    completed_at: UTCDatetime | None
+
+
+class CompletionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ticket_id: str
+    agent_id: int
+    completed_at: UTCDatetime
+
+
+Outcome = Literal["ASSIGNED", "UNASSIGNED"]
+
+
+class LogAgentOut(BaseModel):
+    id: int
+    name: str
+
+
+class LogItemOut(BaseModel):
+    id: int
+    ticket_id: str
+    outcome: Outcome
+    agent: LogAgentOut | None
+    reason_code: models.ReasonCode
+    evaluated_at: UTCDatetime
+    snapshot: dict
+
+
+class AssignmentLogOut(BaseModel):
+    items: list[LogItemOut]
+    next_cursor: int | None

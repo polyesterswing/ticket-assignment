@@ -1,23 +1,8 @@
-from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 
-import pytest
 from fastapi.testclient import TestClient
 
-from clearfeed.api.deps import get_now
-from clearfeed.app import app
 from clearfeed.models import Company
-
-
-@pytest.fixture
-def set_now() -> Iterator[Callable[[datetime], None]]:
-    """Pin the API's clock to a fixed instant."""
-
-    def pin(instant: datetime) -> None:
-        app.dependency_overrides[get_now] = lambda: instant
-
-    yield pin
-    app.dependency_overrides.pop(get_now, None)
 
 
 def url(company: Company) -> str:

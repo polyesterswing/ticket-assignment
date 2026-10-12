@@ -1,6 +1,14 @@
 from fastapi import FastAPI
 
-from clearfeed.api.routes import agents, companies, coverage, required_hours, shifts
+from clearfeed.api.routes import (
+    agents,
+    assignment_log,
+    companies,
+    coverage,
+    required_hours,
+    shifts,
+    tickets,
+)
 from clearfeed.core.errors import register_error_handlers
 
 app = FastAPI(title="clearfeed")
@@ -10,6 +18,8 @@ app.include_router(agents.router)
 app.include_router(shifts.router)
 app.include_router(required_hours.router)
 app.include_router(coverage.router)
+app.include_router(tickets.router)
+app.include_router(assignment_log.router)
 
 
 @app.get("/health")

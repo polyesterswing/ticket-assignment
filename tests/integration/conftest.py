@@ -1,5 +1,6 @@
 import os
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -9,9 +10,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, make_url, text
 from sqlalchemy.orm import Session
 
+from clearfeed.api.deps import get_now
 from clearfeed.app import app
+from clearfeed.core.config import get_settings
 from clearfeed.core.db import SessionLocal, engine
-from clearfeed.models import Agent, Company, Shift
+from clearfeed.models import Agent, Company, ReasonCode, Shift, TicketAssignment
 from clearfeed.schemas import DAYS, parse_hhmm
 
 ROOT = Path(__file__).parents[2]
@@ -93,3 +96,50 @@ def make_shift(session: Session) -> Callable[..., Shift]:
         return shift
 
     return make
+
+
+@pytest.fixture
+def make_ticket(session: Session) -> Callable[..., TicketAssignment]:
+    """Insert an assigned ticket directly, e.g. to give an agent active tickets."""
+
+    def make(
+        agent: Agent,
+        ticket_id: str,
+        assigned_at: datetime,
+        completed_at: datetime | None = None,
+    ) -> TicketAssignment:
+        ticket = TicketAssignment(
+            company_id=agent.company_id,
+            ticket_id=ticket_id,
+            agent_id=agent.id,
+            reason_code=ReasonCode.FEWEST_ACTIVE,
+            assigned_at=assigned_at,
+            completed_at=completed_at,
+        )
+        session.add(ticket)
+        session.commit()
+        return ticket
+
+    return make
+
+
+@pytest.fixture
+def set_now() -> Iterator[Callable[[datetime], None]]:
+    """Pin the API's clock to a fixed instant."""
+
+    def pin(instant: datetime) -> None:
+        app.dependency_overrides[get_now] = lambda: instant
+
+    yield pin
+    app.dependency_overrides.pop(get_now, None)
+
+
+@pytest.fixture
+def settings(monkeypatch: pytest.MonkeyPatch):
+    """The app's settings; attributes set through monkeypatch are undone after the test."""
+
+    class Setter:
+        def __setattr__(self, name: str, value: object) -> None:
+            monkeypatch.setattr(get_settings(), name, value)
+
+    return Setter()

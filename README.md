@@ -137,6 +137,9 @@ The coverage view places required hours (company time) and every agent's shifts
 instants, and subtracts covered time from required time. Each date uses its own UTC
 offset, so weeks where only one of the timezones has changed its clocks work
 without special cases. Gaps are shown in the company's timezone, split at midnight.
+Each gap also has `start_at`/`end_at` timestamps with their UTC offset, so a gap
+during a clock change stays unambiguous (e.g. 01:45 BST to 01:15 GMT); the UI
+notes when clocks change during a gap.
 
 On clock-change days, a local time that doesn't exist is treated as the same
 clock time after the jump, and a time that happens twice uses its first

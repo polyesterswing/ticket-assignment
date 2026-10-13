@@ -1,4 +1,5 @@
 from datetime import date
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 
@@ -20,12 +21,20 @@ def get_coverage(
     Defaults to the current week in the company timezone.
     """
     monday, gaps = coverage.get_coverage(session, company, week_of, now)
+    tz = ZoneInfo(company.timezone)
     return CoverageOut(
         company_timezone=company.timezone,
         week_start=monday,
         fully_covered=not gaps,
         gaps=[
-            GapOut(day=DAYS[g.date.weekday()], date=g.date, start=g.start_minute, end=g.end_minute)
+            GapOut(
+                day=DAYS[g.date.weekday()],
+                date=g.date,
+                start=g.start_minute,
+                end=g.end_minute,
+                start_at=g.start_at.astimezone(tz),
+                end_at=g.end_at.astimezone(tz),
+            )
             for g in gaps
         ],
     )

@@ -114,11 +114,19 @@ def required_hours_out(rows: list[models.RequiredHours]) -> RequiredHoursOut:
     )
 
 
+# Rendered with an explicit offset, e.g. "2026-10-25T01:15:00+00:00" rather than "...Z".
+LocalDatetime = Annotated[dt.datetime, PlainSerializer(dt.datetime.isoformat, return_type=str)]
+
+
 class GapOut(BaseModel):
     day: Day
     date: dt.date
     start: Minute
     end: Minute
+    # Exact moments in company time, with UTC offset. Unlike start/end, these stay
+    # in order when clocks change during the gap.
+    start_at: LocalDatetime
+    end_at: LocalDatetime
 
 
 class CoverageOut(BaseModel):

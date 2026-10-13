@@ -13,7 +13,7 @@ the first occurrence. This is Python's zoneinfo behaviour with fold=0.
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from clearfeed.domain.schedule import MINUTES_PER_DAY, Span, local_instant, shift_spans
@@ -22,11 +22,17 @@ from clearfeed.models import RequiredHours, Shift
 
 @dataclass(frozen=True)
 class Gap:
-    """Uncovered required time on one company-local date. end_minute may be 1440."""
+    """Uncovered required time on one company-local date. end_minute may be 1440.
+
+    start_at/end_at are the exact UTC instants. They keep the order clear when
+    clocks change during a gap, e.g. 01:45 BST to 01:15 GMT when clocks go back.
+    """
 
     date: date
     start_minute: int
     end_minute: int
+    start_at: datetime
+    end_at: datetime
 
 
 def week_start(day: date) -> date:
@@ -113,6 +119,7 @@ def _to_local(span: Span, tz: ZoneInfo) -> list[Gap]:
             if local_end.date() > day
             else local_end.hour * 60 + local_end.minute
         )
-        pieces.append(Gap(day, local_start.hour * 60 + local_start.minute, end_minute))
+        start_minute = local_start.hour * 60 + local_start.minute
+        pieces.append(Gap(day, start_minute, end_minute, start, piece_end))
         start = piece_end
     return pieces

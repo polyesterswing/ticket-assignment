@@ -265,6 +265,17 @@ function app() {
       await this.run(() => this.loadCoverage());
     },
 
+    // When clocks change during a gap, its real length (start_at to end_at)
+    // differs from what the clock times suggest, e.g. 01:45 – 01:15 when clocks go back.
+    clockChangeNote(gap) {
+      const minutes = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+      const real = (new Date(gap.end_at) - new Date(gap.start_at)) / 60000;
+      const shown = minutes(gap.end) - minutes(gap.start);
+      if (real > shown) return "clocks go back during this gap";
+      if (real < shown) return "clocks go forward during this gap";
+      return "";
+    },
+
     // --- Assignment log ---
 
     async loadLog(reset) {

@@ -28,8 +28,14 @@ def test_gaps_in_company_time(client: TestClient, make_company, make_agent, make
         "week_start": "2026-10-12",
         "fully_covered": False,
         "gaps": [
-            {"day": "MON", "date": "2026-10-12", "start": "12:30", "end": "20:00"},
-            {"day": "TUE", "date": "2026-10-13", "start": "08:00", "end": "20:00"},
+            {
+                "day": "MON", "date": "2026-10-12", "start": "12:30", "end": "20:00",
+                "start_at": "2026-10-12T12:30:00+01:00", "end_at": "2026-10-12T20:00:00+01:00",
+            },
+            {
+                "day": "TUE", "date": "2026-10-13", "start": "08:00", "end": "20:00",
+                "start_at": "2026-10-13T08:00:00+01:00", "end_at": "2026-10-13T20:00:00+01:00",
+            },
         ],
     }
 
@@ -54,7 +60,7 @@ def test_other_companies_agents_dont_count(
 
     gaps = client.get(url(company), params={"week_of": "2026-10-12"}).json()["gaps"]
 
-    assert gaps == [{"day": "MON", "date": "2026-10-12", "start": "09:00", "end": "17:00"}]
+    assert [(g["date"], g["start"], g["end"]) for g in gaps] == [("2026-10-12", "09:00", "17:00")]
 
 
 def test_default_week_is_current_week_in_company_timezone(

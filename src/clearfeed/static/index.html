@@ -181,11 +181,15 @@
         <table class="table table-sm w-auto" x-show="!coverage.fully_covered">
           <thead><tr><th>Day</th><th>Date</th><th>Uncovered</th></tr></thead>
           <tbody>
-            <template x-for="g in coverage.gaps" :key="`${g.date}-${g.start}`">
+            <template x-for="g in coverage.gaps" :key="g.start_at">
               <tr class="table-warning">
                 <td x-text="g.day"></td>
                 <td x-text="g.date"></td>
-                <td x-text="`${g.start} – ${g.end}`"></td>
+                <td>
+                  <span x-text="`${g.start} – ${g.end}`"></span>
+                  <small class="text-body-secondary ms-1" x-show="clockChangeNote(g)"
+                         x-text="`· ${clockChangeNote(g)}`"></small>
+                </td>
               </tr>
             </template>
           </tbody>

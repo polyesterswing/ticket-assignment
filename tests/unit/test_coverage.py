@@ -143,3 +143,17 @@ def test_assignment_and_coverage_agree_on_clock_change_days(
 
     assert (matching_shift([s], "Europe/London", now) is not None) is working
     assert gap_now is not working
+
+
+def test_gap_across_clocks_going_back_keeps_its_order() -> None:
+    """London repeats 01:00-02:00 on 2026-10-25. Nobody covers 00:45-01:15 UTC,
+    which is 01:45 BST to 01:15 GMT: backwards as clock times, but start_at and
+    end_at keep the real order."""
+    required = [window("SUN", "01:00", "02:00")]
+    agents = [("UTC", [shift("SUN", "00:00", "00:45"), shift("SUN", "01:15", "02:00")])]
+
+    [gap] = find_gaps("Europe/London", date(2026, 10, 19), required, agents)
+
+    assert (format_hhmm(gap.start_minute), format_hhmm(gap.end_minute)) == ("01:45", "01:15")
+    assert gap.start_at == datetime(2026, 10, 25, 0, 45, tzinfo=UTC)
+    assert gap.end_at == datetime(2026, 10, 25, 1, 15, tzinfo=UTC)

@@ -132,30 +132,32 @@
       Times the company needs someone available, in <strong x-text="company?.timezone"></strong>.
       Windows can't cross midnight; use 24:00 for end of day.
     </p>
-    <form @submit.prevent="saveWindows()">
-      <table class="table table-sm align-middle w-auto">
-        <thead><tr><th>Day</th><th>Start</th><th>End</th><th></th></tr></thead>
-        <tbody>
-          <template x-for="(w, i) in windows" :key="i">
-            <tr>
-              <td>
-                <select class="form-select form-select-sm" x-model="w.day" @change="windowsSaved = false">
-                  <template x-for="d in DAYS"><option :value="d" x-text="d" :selected="d === w.day"></option></template>
-                </select>
-              </td>
-              <td><input class="form-control form-control-sm time-input" x-model="w.start" @input="windowsSaved = false"></td>
-              <td><input class="form-control form-control-sm time-input" x-model="w.end" @input="windowsSaved = false"></td>
-              <td><button type="button" class="btn btn-sm btn-outline-danger" @click="removeWindow(i)">Remove</button></td>
-            </tr>
-          </template>
-          <tr x-show="!windows.length"><td colspan="4" class="text-body-secondary">No required hours.</td></tr>
-        </tbody>
-      </table>
-      <button type="button" class="btn btn-outline-secondary" @click="addWindow()">Add window</button>
-      <button class="btn btn-primary">Save</button>
-      <span class="text-success ms-2" x-show="windowsSaved">Saved</span>
-      <div class="alert alert-danger py-2 mt-3" x-show="windowsError" x-text="windowsError"></div>
-    </form>
+    <template x-if="windows">
+      <form @submit.prevent="saveWindows()">
+        <table class="table table-sm align-middle w-auto">
+          <thead><tr><th>Day</th><th>Start</th><th>End</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="(w, i) in windows" :key="i">
+              <tr>
+                <td>
+                  <select class="form-select form-select-sm" x-model="w.day" @change="windowsSaved = false">
+                    <template x-for="d in DAYS"><option :value="d" x-text="d" :selected="d === w.day"></option></template>
+                  </select>
+                </td>
+                <td><input class="form-control form-control-sm time-input" x-model="w.start" @input="windowsSaved = false"></td>
+                <td><input class="form-control form-control-sm time-input" x-model="w.end" @input="windowsSaved = false"></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger" @click="removeWindow(i)">Remove</button></td>
+              </tr>
+            </template>
+            <tr x-show="!windows.length"><td colspan="4" class="text-body-secondary">No required hours.</td></tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-outline-secondary" @click="addWindow()">Add window</button>
+        <button class="btn btn-primary">Save</button>
+        <span class="text-success ms-2" x-show="windowsSaved">Saved</span>
+        <div class="alert alert-danger py-2 mt-3" x-show="windowsError" x-text="windowsError"></div>
+      </form>
+    </template>
   </section>
 
   <!-- Coverage: required hours with nobody scheduled -->

@@ -3,14 +3,16 @@
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
 // Calls the JSON API. Errors are thrown as the API's {code, message}.
-async function api(method, path, body) {
+async function api(method, path, body, signal) {
   const response = await fetch(path, {
     method,
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
+  signal?.throwIfAborted(); // the catch above also swallows aborts
   if (!response.ok) {
     throw data?.error ?? { code: `HTTP_${response.status}`, message: response.statusText };
   }
@@ -23,7 +25,16 @@ function addDays(isoDate, days) {
   return date.toISOString().slice(0, 10);
 }
 
+// Thrown by fetch when its request is aborted.
+function isAbort(e) {
+  return e?.name === "AbortError";
+}
+
 function app() {
+  // Aborted when the selected company changes, so responses for the old
+  // company never land in the page. Kept outside the reactive state.
+  let companyRequests = new AbortController();
+
   return {
     DAYS,
     timezones: Intl.supportedValuesOf("timeZone"),
@@ -44,7 +55,7 @@ function app() {
     shiftError: null,
 
     // Required hours tab
-    windows: [],
+    windows: null, // null until loaded for the selected company
     windowsError: null,
     windowsSaved: false,
 
@@ -86,17 +97,32 @@ function app() {
         this.error = null;
         await load();
       } catch (e) {
-        this.error = e.message ?? String(e);
+        if (!isAbort(e)) this.error = e.message ?? String(e);
       }
     },
 
+    // Calls the API for the selected company.
+    request(method, path, body) {
+      return api(method, path, body, companyRequests.signal);
+    },
+
     async selectCompany(id) {
+      companyRequests.abort();
+      companyRequests = new AbortController();
       this.companyId = Number(id);
+      this.agents = [];
       this.agentId = null;
+      this.shifts = [];
+      this.windows = null;
       this.coverage = null;
       this.weekOf = "";
+      this.log = [];
+      this.logCursor = null;
+      this.expandedLogId = null;
+      this.testResult = null;
+      this.testError = null;
       await this.run(async () => {
-        this.agents = await api("GET", `${this.base}/agents`);
+        this.agents = await this.request("GET", `${this.base}/agents`);
         if (this.agents.length) await this.selectAgent(this.agents[0].id);
         await this.loadTab();
       });
@@ -135,18 +161,19 @@ function app() {
     },
 
     async loadShifts() {
-      this.shifts = await api("GET", `${this.base}/agents/${this.agentId}/shifts`);
+      this.shifts = await this.request("GET", `${this.base}/agents/${this.agentId}/shifts`);
     },
 
     async saveTimezone() {
       try {
-        const updated = await api("PATCH", `${this.base}/agents/${this.agentId}`, {
+        const updated = await this.request("PATCH", `${this.base}/agents/${this.agentId}`, {
           timezone: this.timezoneInput,
         });
         this.agents = this.agents.map((a) => (a.id === updated.id ? updated : a));
         this.timezoneError = null;
         this.timezoneSaved = true;
       } catch (e) {
+        if (isAbort(e)) return;
         this.timezoneError = e.message;
         this.timezoneSaved = false;
       }
@@ -166,11 +193,12 @@ function app() {
       const { id, day, start, end } = this.shiftForm;
       const path = `${this.base}/agents/${this.agentId}/shifts`;
       try {
-        if (id) await api("PUT", `${path}/${id}`, { day, start, end });
-        else await api("POST", path, { day, start, end });
+        if (id) await this.request("PUT", `${path}/${id}`, { day, start, end });
+        else await this.request("POST", path, { day, start, end });
         this.resetShiftForm();
         await this.loadShifts();
       } catch (e) {
+        if (isAbort(e)) return;
         this.shiftError = e.message;
       }
     },
@@ -178,7 +206,7 @@ function app() {
     async deleteShift(shift) {
       if (!confirm(`Delete ${shift.day} ${shift.start}-${shift.end}?`)) return;
       await this.run(async () => {
-        await api("DELETE", `${this.base}/agents/${this.agentId}/shifts/${shift.id}`);
+        await this.request("DELETE", `${this.base}/agents/${this.agentId}/shifts/${shift.id}`);
         if (this.shiftForm.id === shift.id) this.resetShiftForm();
         await this.loadShifts();
       });
@@ -191,7 +219,7 @@ function app() {
     // --- Required hours ---
 
     async loadWindows() {
-      this.windows = (await api("GET", `${this.base}/required-hours`)).windows;
+      this.windows = (await this.request("GET", `${this.base}/required-hours`)).windows;
       this.windowsError = null;
       this.windowsSaved = false;
     },
@@ -208,11 +236,12 @@ function app() {
 
     async saveWindows() {
       try {
-        const saved = await api("PUT", `${this.base}/required-hours`, { windows: this.windows });
+        const saved = await this.request("PUT", `${this.base}/required-hours`, { windows: this.windows });
         this.windows = saved.windows;
         this.windowsError = null;
         this.windowsSaved = true;
       } catch (e) {
+        if (isAbort(e)) return;
         this.windowsError = e.message;
         this.windowsSaved = false;
       }
@@ -222,7 +251,7 @@ function app() {
 
     async loadCoverage() {
       const query = this.weekOf ? `?week_of=${this.weekOf}` : "";
-      this.coverage = await api("GET", `${this.base}/coverage${query}`);
+      this.coverage = await this.request("GET", `${this.base}/coverage${query}`);
       this.weekOf = this.coverage.week_start;
     },
 
@@ -244,7 +273,7 @@ function app() {
       if (this.logFilters.outcome) params.set("outcome", this.logFilters.outcome);
       if (!reset && this.logCursor) params.set("cursor", this.logCursor);
 
-      const page = await api("GET", `${this.base}/assignment-log?${params}`);
+      const page = await this.request("GET", `${this.base}/assignment-log?${params}`);
       this.log = reset ? page.items : [...this.log, ...page.items];
       this.logCursor = page.next_cursor;
     },
@@ -257,10 +286,11 @@ function app() {
     async sendTestTicket(action) {
       try {
         const ticketId = encodeURIComponent(this.testTicketId.trim());
-        this.testResult = await api("POST", `${this.base}/tickets/${ticketId}/${action}`);
+        this.testResult = await this.request("POST", `${this.base}/tickets/${ticketId}/${action}`);
         this.testError = null;
         await this.loadLog(true);
       } catch (e) {
+        if (isAbort(e)) return;
         this.testError = e.message;
         this.testResult = null;
       }

@@ -13,13 +13,11 @@ the first occurrence. This is Python's zoneinfo behaviour with fold=0.
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
-from clearfeed.domain.schedule import MINUTES_PER_DAY
+from clearfeed.domain.schedule import MINUTES_PER_DAY, Span, local_instant, shift_spans
 from clearfeed.models import RequiredHours, Shift
-
-Span = tuple[datetime, datetime]  # UTC instants, start inclusive, end exclusive
 
 
 @dataclass(frozen=True)
@@ -50,8 +48,8 @@ def find_gaps(
 
     required_spans = [
         (
-            _instant(week_of + timedelta(days=w.day_of_week), w.start_minute, company_tz),
-            _instant(week_of + timedelta(days=w.day_of_week), w.end_minute, company_tz),
+            local_instant(week_of + timedelta(days=w.day_of_week), w.start_minute, company_tz),
+            local_instant(week_of + timedelta(days=w.day_of_week), w.end_minute, company_tz),
         )
         for w in required
     ]
@@ -60,35 +58,12 @@ def find_gaps(
     for timezone, shifts in agents:
         agent_tz = ZoneInfo(timezone)
         for shift in shifts:
-            covered.extend(_shift_spans(shift, agent_tz, week_of))
+            # A few days either side of the week: agents can be ~26 hours from the
+            # company timezone, and overnight shifts run into the next day.
+            covered.extend(shift_spans(shift, agent_tz, week_of, range(-3, 10)))
 
     gaps = _subtract(_merge(required_spans), _merge(covered))
     return [piece for gap in gaps for piece in _to_local(gap, company_tz)]
-
-
-def _instant(day: date, minute: int, tz: ZoneInfo) -> datetime:
-    """UTC instant of a local date and minute since midnight (1440 = next midnight)."""
-    local = datetime(day.year, day.month, day.day, tzinfo=tz) + timedelta(minutes=minute)
-    return local.astimezone(UTC)
-
-
-def _shift_spans(shift: Shift, tz: ZoneInfo, week_of: date) -> list[Span]:
-    """Occurrences of a weekly shift around the given week, as UTC spans.
-
-    Dates a few days either side of the week are included: agents can be up
-    to ~26 hours away from the company timezone, and overnight shifts run
-    into the next day.
-    """
-    end_minute = shift.end_minute
-    if end_minute <= shift.start_minute:  # overnight
-        end_minute += MINUTES_PER_DAY
-
-    spans = []
-    for offset in range(-3, 10):
-        day = week_of + timedelta(days=offset)
-        if day.weekday() == shift.day_of_week:
-            spans.append((_instant(day, shift.start_minute, tz), _instant(day, end_minute, tz)))
-    return spans
 
 
 def _merge(spans: list[Span]) -> list[Span]:
@@ -129,7 +104,7 @@ def _to_local(span: Span, tz: ZoneInfo) -> list[Gap]:
     while start < end:
         local_start = start.astimezone(tz)
         day = local_start.date()
-        midnight = _instant(day, MINUTES_PER_DAY, tz)
+        midnight = local_instant(day, MINUTES_PER_DAY, tz)
         piece_end = min(end, midnight)
 
         local_end = piece_end.astimezone(tz)

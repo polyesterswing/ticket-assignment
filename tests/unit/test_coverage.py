@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
 from clearfeed.domain.coverage import find_gaps, week_start
-from clearfeed.domain.schedule import DAYS, format_hhmm, parse_hhmm
+from clearfeed.domain.schedule import DAYS, format_hhmm, matching_shift, parse_hhmm
 from clearfeed.models import RequiredHours, Shift
 
 WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI"]
@@ -120,3 +120,26 @@ def test_clocks_going_back_repeated_start_uses_first_occurrence() -> None:
     agents = [("Europe/London", [shift("SUN", "01:30", "03:00")])]
 
     assert gaps("UTC", "2026-10-19", required, agents) == [("2026-10-25", "00:00", "00:30")]
+
+
+@pytest.mark.parametrize(
+    ("week_of", "s", "instant", "working"),
+    [
+        # Clocks go back: 01:15 UTC is the second 01:15 in London, mid-shift.
+        ("2026-10-19", shift("SUN", "01:30", "03:00"), "2026-10-25T01:15", True),
+        # Clocks go forward: 01:15 UTC is 02:15 BST, before the start moved to 02:30.
+        ("2026-03-23", shift("SUN", "01:30", "04:00"), "2026-03-29T01:15", False),
+    ],
+)
+def test_assignment_and_coverage_agree_on_clock_change_days(
+    week_of: str, s: Shift, instant: str, working: bool
+) -> None:
+    now = datetime.fromisoformat(instant).replace(tzinfo=UTC)
+    required = [window("SUN", "00:00", "04:00")]
+    gap_now = any(
+        start <= now.strftime("%H:%M") < end
+        for _, start, end in gaps("UTC", week_of, required, [("Europe/London", [s])])
+    )
+
+    assert (matching_shift([s], "Europe/London", now) is not None) is working
+    assert gap_now is not working

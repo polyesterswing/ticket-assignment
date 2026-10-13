@@ -140,7 +140,9 @@ without special cases. Gaps are shown in the company's timezone, split at midnig
 
 On clock-change days, a local time that doesn't exist is treated as the same
 clock time after the jump, and a time that happens twice uses its first
-occurrence.
+occurrence. Each shift is one continuous span between those instants, and
+assignment uses the same spans, so coverage and assignment always agree on who
+is available.
 
 ### Transparency
 

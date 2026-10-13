@@ -7,7 +7,7 @@ start day and runs into the next day; a Sunday overnight shift wraps to Monday.
 
 import re
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from clearfeed.models import RequiredHours, Shift
@@ -17,6 +17,7 @@ MINUTES_PER_DAY = 24 * 60  # also "24:00", the end of a day
 MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
 
 Interval = tuple[int, int]
+Span = tuple[datetime, datetime]  # UTC instants, start inclusive, end exclusive
 
 _HHMM = re.compile(r"(\d{2}):(\d{2})")
 
@@ -81,17 +82,51 @@ def find_window_overlap(
     return None
 
 
+def local_instant(day: date, minute: int, tz: ZoneInfo) -> datetime:
+    """UTC instant of a local date and minute since midnight (1440 = next midnight).
+
+    On clock-change days, a local time that doesn't exist resolves to the same
+    clock time after the jump, and one that happens twice uses the first
+    occurrence (zoneinfo's fold=0).
+    """
+    local = datetime(day.year, day.month, day.day, tzinfo=tz) + timedelta(minutes=minute)
+    return local.astimezone(UTC)
+
+
+def shift_spans(shift: Shift, tz: ZoneInfo, around: date, days: range) -> list[Span]:
+    """UTC spans of the shift's occurrences on the dates `around + d` for d in `days`.
+
+    A shift occurrence is one continuous span from its start instant to its end
+    instant. Coverage and assignment both use this, so they always agree on when
+    an agent is available, including on clock-change days.
+    """
+    end_minute = shift.end_minute
+    if end_minute <= shift.start_minute:  # overnight
+        end_minute += MINUTES_PER_DAY
+
+    spans = []
+    for offset in days:
+        day = around + timedelta(days=offset)
+        if day.weekday() == shift.day_of_week:
+            spans.append(
+                (local_instant(day, shift.start_minute, tz), local_instant(day, end_minute, tz))
+            )
+    return spans
+
+
 def matching_shift(agent_shifts: Iterable[Shift], timezone: str, now: datetime) -> Shift | None:
-    """The shift containing `now` in the agent's local time, or None.
+    """The shift the agent is working at `now`, or None.
 
     `agent_shifts` are one agent's shifts; `timezone` is that agent's timezone.
     """
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
-    local = now.astimezone(ZoneInfo(timezone))
-    minute = local.weekday() * MINUTES_PER_DAY + local.hour * 60 + local.minute
+    tz = ZoneInfo(timezone)
+    today = now.astimezone(tz).date()
     for shift in agent_shifts:
-        if any(start <= minute < end for start, end in shift_intervals(shift)):
+        # Yesterday's occurrence covers overnight shifts still running today.
+        spans = shift_spans(shift, tz, today, range(-1, 1))
+        if any(start <= now < end for start, end in spans):
             return shift
     return None

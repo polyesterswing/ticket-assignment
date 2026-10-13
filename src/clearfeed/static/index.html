@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>clearfeed</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js"></script>
+  <script defer src="/static/vendor/alpine.min.js"></script>
+</head>
+<body x-data="app()" x-cloak>
+
+<nav class="navbar bg-dark navbar-dark mb-3">
+  <div class="container">
+    <span class="navbar-brand">clearfeed</span>
+    <div class="d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm" aria-label="Company"
+              :value="companyId" @change="selectCompany($event.target.value)">
+        <template x-for="c in companies" :key="c.id">
+          <option :value="c.id" x-text="c.name" :selected="c.id === companyId"></option>
+        </template>
+      </select>
+      <span class="badge text-bg-secondary text-nowrap" x-text="company?.timezone"></span>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  <div class="alert alert-danger" x-show="error" x-text="error"></div>
+
+  <ul class="nav nav-tabs mb-3">
+    <template x-for="[key, label] in [['agents', 'Agents'], ['hours', 'Required Hours'], ['coverage', 'Coverage'], ['log', 'Assignment Log']]">
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: tab === key }" @click="tab = key" x-text="label"></button>
+      </li>
+    </template>
+  </ul>
+
+  <!-- Agents: timezone and weekly shifts, in the agent's local time -->
+  <section x-show="tab === 'agents'">
+    <div class="row g-4">
+      <div class="col-md-3">
+        <div class="list-group">
+          <template x-for="a in agents" :key="a.id">
+            <button class="list-group-item list-group-item-action" :class="{ active: a.id === agentId }"
+                    @click="selectAgent(a.id)">
+              <div x-text="a.name"></div>
+              <small class="opacity-75" x-text="a.timezone"></small>
+            </button>
+          </template>
+        </div>
+        <p class="text-body-secondary" x-show="!agents.length">No agents in this company.</p>
+      </div>
+
+      <div class="col-md-9" x-show="agent">
+        <h2 class="h4" x-text="agent?.name"></h2>
+
+        <form class="row g-2 align-items-start mb-4" @submit.prevent="saveTimezone()">
+          <div class="col-sm-6">
+            <label class="form-label" for="timezone">Timezone</label>
+            <input id="timezone" class="form-control" list="timezones" x-model="timezoneInput"
+                   :class="{ 'is-invalid': timezoneError }" @input="timezoneSaved = false">
+            <datalist id="timezones">
+              <template x-for="tz in timezones"><option :value="tz"></option></template>
+            </datalist>
+            <div class="invalid-feedback" x-text="timezoneError"></div>
+            <div class="form-text">Shifts keep their local clock times when the timezone changes.</div>
+          </div>
+          <div class="col-auto pt-sm-4 mt-sm-2">
+            <button class="btn btn-primary">Save timezone</button>
+            <span class="text-success ms-2" x-show="timezoneSaved">Saved</span>
+          </div>
+        </form>
+
+        <h3 class="h5">Weekly shifts <small class="text-body-secondary" x-text="`(${agent?.timezone})`"></small></h3>
+        <table class="table table-sm align-middle">
+          <thead><tr><th>Day</th><th>Start</th><th>End</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="s in shifts" :key="s.id">
+              <tr :class="{ 'table-active': shiftForm.id === s.id }">
+                <td x-text="s.day"></td>
+                <td x-text="s.start"></td>
+                <td>
+                  <span x-text="s.end"></span>
+                  <span class="badge text-bg-info ms-1" x-show="isOvernight(s)">next day</span>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-secondary" @click="editShift(s)">Edit</button>
+                  <button class="btn btn-sm btn-outline-danger" @click="deleteShift(s)">Delete</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!shifts.length"><td colspan="4" class="text-body-secondary">No shifts yet.</td></tr>
+          </tbody>
+        </table>
+
+        <form class="row g-2 align-items-end" @submit.prevent="saveShift()">
+          <div class="col-auto">
+            <label class="form-label">Day</label>
+            <select class="form-select" x-model="shiftForm.day">
+              <template x-for="d in DAYS"><option :value="d" x-text="d" :selected="d === shiftForm.day"></option></template>
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label">Start</label>
+            <input class="form-control time-input" placeholder="09:00" x-model="shiftForm.start">
+          </div>
+          <div class="col-auto">
+            <label class="form-label">End</label>
+            <input class="form-control time-input" placeholder="17:00" x-model="shiftForm.end">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary" x-text="shiftForm.id ? 'Update shift' : 'Add shift'"></button>
+            <button type="button" class="btn btn-link" x-show="shiftForm.id" @click="resetShiftForm()">Cancel</button>
+          </div>
+          <div class="col-12 form-text">
+            HH:MM in the agent's timezone. An end before the start runs into the next day; 24:00 is midnight.
+          </div>
+          <div class="col-12" x-show="shiftError">
+            <div class="alert alert-danger py-2 mb-0" x-text="shiftError"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Required hours: windows in company time that should be covered -->
+  <section x-show="tab === 'hours'">
+    <p class="text-body-secondary">
+      Times the company needs someone available, in <strong x-text="company?.timezone"></strong>.
+      Windows can't cross midnight; use 24:00 for end of day.
+    </p>
+    <template x-if="windows">
+      <form @submit.prevent="saveWindows()">
+        <table class="table table-sm align-middle w-auto">
+          <thead><tr><th>Day</th><th>Start</th><th>End</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="(w, i) in windows" :key="i">
+              <tr>
+                <td>
+                  <select class="form-select form-select-sm" x-model="w.day" @change="windowsSaved = false">
+                    <template x-for="d in DAYS"><option :value="d" x-text="d" :selected="d === w.day"></option></template>
+                  </select>
+                </td>
+                <td><input class="form-control form-control-sm time-input" x-model="w.start" @input="windowsSaved = false"></td>
+                <td><input class="form-control form-control-sm time-input" x-model="w.end" @input="windowsSaved = false"></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger" @click="removeWindow(i)">Remove</button></td>
+              </tr>
+            </template>
+            <tr x-show="!windows.length"><td colspan="4" class="text-body-secondary">No required hours.</td></tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-outline-secondary" @click="addWindow()">Add window</button>
+        <button class="btn btn-primary">Save</button>
+        <span class="text-success ms-2" x-show="windowsSaved">Saved</span>
+        <div class="alert alert-danger py-2 mt-3" x-show="windowsError" x-text="windowsError"></div>
+      </form>
+    </template>
+  </section>
+
+  <!-- Coverage: required hours with nobody scheduled -->
+  <section x-show="tab === 'coverage'">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <button class="btn btn-outline-secondary" @click="moveWeek(-1)" :disabled="!coverage">&larr; Previous</button>
+      <input type="date" class="form-control w-auto" x-model="weekOf" @change="run(() => loadCoverage())">
+      <button class="btn btn-outline-secondary" @click="moveWeek(1)" :disabled="!coverage">Next &rarr;</button>
+      <button class="btn btn-link" @click="currentWeek()">This week</button>
+    </div>
+
+    <template x-if="coverage">
+      <div>
+        <p>
+          Week of <strong x-text="coverage.week_start"></strong>, shown in
+          <strong x-text="coverage.company_timezone"></strong>.
+        </p>
+        <div class="alert alert-success" x-show="coverage.fully_covered">
+          Fully covered: someone is scheduled for all required hours this week.
+        </div>
+        <table class="table table-sm w-auto" x-show="!coverage.fully_covered">
+          <thead><tr><th>Day</th><th>Date</th><th>Uncovered</th></tr></thead>
+          <tbody>
+            <template x-for="g in coverage.gaps" :key="g.start_at">
+              <tr class="table-warning">
+                <td x-text="g.day"></td>
+                <td x-text="g.date"></td>
+                <td>
+                  <span x-text="`${g.start} – ${g.end}`"></span>
+                  <small class="text-body-secondary ms-1" x-show="clockChangeNote(g)"
+                         x-text="`· ${clockChangeNote(g)}`"></small>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </section>
+
+  <!-- Assignment log: every decision, with the data it was based on -->
+  <section x-show="tab === 'log'">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h6 card-title">Send a test ticket</h2>
+        <p class="card-text small text-body-secondary">
+          Does what the ticketing system would: assigns or completes a ticket for this company.
+        </p>
+        <form class="d-flex flex-wrap gap-2" @submit.prevent="sendTestTicket('assign')">
+          <input class="form-control w-auto" placeholder="Ticket id" x-model="testTicketId" required>
+          <button class="btn btn-primary">Assign</button>
+          <button type="button" class="btn btn-outline-secondary" :disabled="!testTicketId.trim()"
+                  @click="sendTestTicket('complete')">Complete</button>
+        </form>
+        <pre class="bg-body-tertiary p-2 mt-3 mb-0 small" x-show="testResult" x-text="JSON.stringify(testResult, null, 2)"></pre>
+        <div class="alert alert-danger py-2 mt-3 mb-0" x-show="testError" x-text="testError"></div>
+      </div>
+    </div>
+
+    <form class="d-flex flex-wrap gap-2 mb-3" @submit.prevent="run(() => loadLog(true))">
+      <input class="form-control w-auto" placeholder="Filter by ticket id" x-model="logFilters.ticket_id">
+      <select class="form-select w-auto" x-model="logFilters.outcome">
+        <option value="">All outcomes</option>
+        <option value="ASSIGNED">Assigned</option>
+        <option value="UNASSIGNED">Unassigned</option>
+      </select>
+      <button class="btn btn-outline-secondary">Filter</button>
+    </form>
+
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr><th>Evaluated <small class="text-body-secondary" x-text="`(${company?.timezone})`"></small></th>
+            <th>Ticket</th><th>Outcome</th><th>Agent</th><th>Reason</th><th></th></tr>
+      </thead>
+      <tbody>
+        <template x-for="entry in log" :key="entry.id">
+          <tr>
+            <td x-text="formatTime(entry.evaluated_at)"></td>
+            <td x-text="entry.ticket_id"></td>
+            <td>
+              <span class="badge" x-text="entry.outcome"
+                    :class="entry.outcome === 'ASSIGNED' ? 'text-bg-success' : 'text-bg-warning'"></span>
+            </td>
+            <td x-text="entry.agent?.name ?? '—'"></td>
+            <td><code x-text="entry.reason_code"></code></td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-secondary" @click="toggleLog(entry.id)"
+                      x-text="expandedLogId === entry.id ? 'Hide' : 'Why?'"></button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="!log.length"><td colspan="6" class="text-body-secondary">No assignments yet.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Snapshot of the selected decision -->
+    <template x-for="entry in log.filter(e => e.id === expandedLogId)" :key="entry.id">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h2 class="h6">
+            Ticket <span x-text="entry.ticket_id"></span>:
+            agents in a shift at the time (limit <span x-text="entry.snapshot.active_ticket_limit"></span> active tickets)
+          </h2>
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Agent</th><th>Active</th><th>Last assigned</th><th>Shift (local)</th></tr></thead>
+            <tbody>
+              <template x-for="s in entry.snapshot.scheduled_agents" :key="s.agent_id">
+                <tr :class="{ 'table-success': s.agent_id === entry.agent?.id }">
+                  <td x-text="agentName(s.agent_id)"></td>
+                  <td x-text="s.active"></td>
+                  <td x-text="s.last_assigned_at ? formatTime(s.last_assigned_at) : 'never'"></td>
+                  <td x-text="`${s.matched_shift.day} ${s.matched_shift.start}–${s.matched_shift.end} ${s.local_tz}`"></td>
+                </tr>
+              </template>
+              <tr x-show="!entry.snapshot.scheduled_agents.length">
+                <td colspan="4" class="text-body-secondary">Nobody was in a shift.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+
+    <button class="btn btn-outline-secondary" x-show="logCursor" @click="run(() => loadLog(false))">Load more</button>
+  </section>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+/* Hide Alpine-managed markup until Alpine has initialised. */
+[x-cloak] {
+  display: none !important;
+}
+
+.time-input {
+  width: 6rem;
+}
